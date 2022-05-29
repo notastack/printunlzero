@@ -1,0 +1,57 @@
+version: "3.7"
+services:
+ traefik:
+    image: traefik
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik/letsencrypt:/letsencrypt"
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.mysmartserver.acme.dnschallenge=true"
+      - "--certificatesresolvers.mysmartserver.acme.dnschallenge.provider=provider"
+    environment:
+      - "PROVIDER_ENDPOINT="
+      - "PROVIDER_APPLICATION_KEY="
+      - "PROVIDER_APPLICATION_SECRET="
+      - "PROVIDER_CONSUMER_KEY="
+ pritunl:
+   image: "pritunl/pritunl-zero:latest"
+   links:
+     - pritunldb
+   environment:
+     - "MONGO_URI=mongodb://pritunldb:27017/pritunl-zero"
+     - "NODE_ID=5b8e11e4610f990034635e98"
+   ports:
+     - '81:80'
+     - '4444:4444'
+     - '444:443'
+ 
+   labels:
+     - "traefik.enable=true"
+     - "traefik.http.routers.traefikforward.tls.certresolver=mysmartserver"
+     - "traefik.http.routers.pritunl.entrypoints=websecure,web"
+     - "traefik.http.routers.pritunl.rule=Host(`zero.mysmartserver.com`)"
+     - "traefik.http.routers.pritunl.rule=Host(`zero-users.mysmartserver.com`)"
+ 
+ pritunldb:
+   image: 'mongo'
+   container_name: 'pritunldb'
+   environment:
+     - MONGO_INITDB_DATABASE="pritunl-zero"
+     - MONGO_USER="mongo"
+     - MONGO_PASS="password"
+   ports:
+     - '27017:27017'
+   volumes:
+     - mongo-data:/data/db
+ 
+ 
+volumes:
+ mongo-data:
